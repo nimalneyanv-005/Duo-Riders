@@ -51,7 +51,7 @@ async function search(
       SELECT id, title, service, severity, stack_trace, root_cause, root_cause_category,
              resolution, resolved_by, occurred_at, resolved_at,
              1 - (embedding <=> ${vec}::vector) AS score
-      FROM incidents WHERE embedding IS NOT NULL
+      FROM incidents WHERE embedding IS NOT NULL AND repeat_of IS NULL
       ORDER BY embedding <=> ${vec}::vector LIMIT 3`) as unknown as Incident[];
     return {
       rows: rows.map((r) => ({ ...r, score: Number(r.score) })),
@@ -61,7 +61,7 @@ async function search(
     console.error("Vector search failed, using keyword fallback:", e);
     const all = (await sql`
       SELECT id, title, service, severity, stack_trace, root_cause, root_cause_category,
-             resolution, resolved_by, occurred_at, resolved_at FROM incidents`) as unknown as Incident[];
+             resolution, resolved_by, occurred_at, resolved_at FROM incidents WHERE repeat_of IS NULL
     const q = tokens(clean);
     const rows = all
       .map((r) => ({

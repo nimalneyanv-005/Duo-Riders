@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-
+import PostmortemPanel from "./PostmortemPanel";
 type Commit = {
   hash: string;
   author: string;
@@ -13,6 +13,7 @@ type Result = {
   mode: "vector" | "keyword";
   score: number;
   match?: {
+    id: number;
     title: string;
     service: string;
     severity: string;
@@ -168,6 +169,13 @@ export default function Home() {
             </div>
           )}
         </div>
+      )}
+      {res && (
+        <PostmortemPanel
+          key={String(res.score)}
+          trace={trace}
+          matchId={res.match?.id ?? null}
+        />
       )}
     </main>
   );
