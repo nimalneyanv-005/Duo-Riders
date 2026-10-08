@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { Bricolage_Grotesque, JetBrains_Mono } from "next/font/google";
 import PostmortemPanel from "./PostmortemPanel";
-
+import Link from "next/link";
 const sans = Bricolage_Grotesque({
   subsets: ["latin"],
   variable: "--font-sans",
@@ -179,7 +179,15 @@ export default function Home() {
             />
             <h1 className="text-2xl font-bold tracking-tight">CodePulse</h1>
           </div>
-          <p className="text-[#5B6B7F]">Never debug the same outage twice.</p>
+          <nav className="flex flex-wrap items-center gap-x-6 gap-y-1">
+            <p className="text-[#5B6B7F]">Never debug the same outage twice.</p>
+            <Link
+              href="/dashboard"
+              className="font-semibold underline underline-offset-4 hover:text-[#FF5A4E]"
+            >
+              Dashboard
+            </Link>
+          </nav>
         </header>
 
         <div className="grid gap-10 lg:grid-cols-[5fr_7fr] lg:gap-14">
