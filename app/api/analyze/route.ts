@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import { analyzeTrace } from "../../../lib/analyze";
-export const runtime = "nodejs"; // DB + embedding clients need Node, not Edge
-export const dynamic = "force-dynamic"; // never cache analysis results
+import { analyzeTrace } from "@/lib/analyze";
+
+// Note: no `runtime` or `dynamic` exports. They are not allowed when
+// Cache Components is enabled (Next.js 16). POST handlers are never cached anyway.
 export const maxDuration = 30; // embedding + DB can exceed Vercel's default timeout
 
 const MIN_LEN = 20;
 const MAX_LEN = 8000;
-const MAX_BODY_BYTES = 32 * 1024; // JSON overhead and non-ASCII characters
+const MAX_BODY_BYTES = 32 * 1024;
 
 const noStore = { "Cache-Control": "no-store" };
 

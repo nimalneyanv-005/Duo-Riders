@@ -17,7 +17,13 @@ type Incident = {
   score: number;
 };
 
-const COLS = sql`id, title, service, severity, stack_trace, root_cause, root_cause_category, resolution, resolved_by, occurred_at, resolved_at`;
+type Commit = {
+  hash: string;
+  author: string;
+  message: string;
+  files_changed: string[];
+  committed_at: string;
+};
 
 // Function names from each stack frame (JS/Java "at X", Python ", in X")
 const symbols = (trace: string) => {
@@ -33,6 +39,7 @@ const symbols = (trace: string) => {
 
 const tokens = (s: string) =>
   new Set(s.toLowerCase().match(/[a-z_][a-z0-9_.]{2,}/g) ?? []);
+
 const jaccard = (a: Set<string>, b: Set<string>) => {
   let inter = 0;
   a.forEach((x) => {
@@ -51,8 +58,10 @@ async function search(
       SELECT id, title, service, severity, stack_trace, root_cause, root_cause_category,
              resolution, resolved_by, occurred_at, resolved_at,
              1 - (embedding <=> ${vec}::vector) AS score
-      FROM incidents WHERE embedding IS NOT NULL AND repeat_of IS NULL
-      ORDER BY embedding <=> ${vec}::vector LIMIT 3`) as unknown as Incident[];
+      FROM incidents
+      WHERE embedding IS NOT NULL AND repeat_of IS NULL
+      ORDER BY embedding <=> ${vec}::vector
+      LIMIT 3`) as unknown as Incident[];
     return {
       rows: rows.map((r) => ({ ...r, score: Number(r.score) })),
       mode: "vector",
@@ -61,7 +70,8 @@ async function search(
     console.error("Vector search failed, using keyword fallback:", e);
     const all = (await sql`
       SELECT id, title, service, severity, stack_trace, root_cause, root_cause_category,
-             resolution, resolved_by, occurred_at, resolved_at FROM incidents WHERE repeat_of IS NULL
+             resolution, resolved_by, occurred_at, resolved_at
+      FROM incidents WHERE repeat_of IS NULL`) as unknown as Incident[];
     const q = tokens(clean);
     const rows = all
       .map((r) => ({
@@ -79,9 +89,10 @@ export async function analyzeTrace(raw: string) {
   const { rows, mode } = await search(clean);
   const best = rows[0];
   const threshold = mode === "vector" ? 0.55 : 0.2; // tune after testing
+
   if (!best || best.score < threshold) {
     return {
-      novel: true,
+      novel: true as const,
       mode,
       score: best ? best.score : 0,
       normalized: clean,
@@ -92,26 +103,31 @@ export async function analyzeTrace(raw: string) {
   const h = symbols(best.stack_trace);
   const overlap = Array.from(q).filter((s) => h.has(s));
 
-  const fixRows = (await sql`
-    SELECT hash, author, message, files_changed, committed_at
-    FROM commits WHERE incident_id = ${best.id} ORDER BY committed_at LIMIT 1`) as unknown as {
-    hash: string;
-    author: string;
-    message: string;
-    files_changed: string[];
-    committed_at: string;
-  }[];
-  const fix = fixRows[0] ?? null;
-
-  let relapse = null;
-  if (fix && fix.files_changed?.length) {
-    const later = (await sql`
+  // Fix commit + relapse are enrichments: if they fail, still return the match
+  let fix: Commit | null = null;
+  let relapse: Commit | null = null;
+  try {
+    const fixRows = (await sql`
       SELECT hash, author, message, files_changed, committed_at
       FROM commits
-      WHERE incident_id IS NULL AND committed_at > ${fix.committed_at}
-        AND files_changed && string_to_array(${fix.files_changed.join(",")}, ',')
-      ORDER BY committed_at DESC LIMIT 1`) as unknown as typeof fixRows;
-    relapse = later[0] ?? null;
+      WHERE incident_id = ${best.id}
+      ORDER BY committed_at
+      LIMIT 1`) as unknown as Commit[];
+    fix = fixRows[0] ?? null;
+
+    if (fix && fix.files_changed?.length) {
+      const later = (await sql`
+        SELECT hash, author, message, files_changed, committed_at
+        FROM commits
+        WHERE incident_id IS NULL
+          AND committed_at > ${fix.committed_at}
+          AND files_changed && ${fix.files_changed}::text[]
+        ORDER BY committed_at DESC
+        LIMIT 1`) as unknown as Commit[];
+      relapse = later[0] ?? null;
+    }
+  } catch (e) {
+    console.error("Commit lookup failed:", e);
   }
 
   const pct = Math.round(best.score * 100);
@@ -122,8 +138,12 @@ export async function analyzeTrace(raw: string) {
       : "No stack frames overlap exactly, so this match is by meaning. ") +
     `There, the cause was: ${best.root_cause}`;
 
+  const mins = Math.round(
+    (+new Date(best.resolved_at) - +new Date(best.occurred_at)) / 60000,
+  );
+
   return {
-    novel: false,
+    novel: false as const,
     mode,
     score: best.score,
     normalized: clean,
@@ -132,9 +152,7 @@ export async function analyzeTrace(raw: string) {
     explanation,
     fix,
     relapse,
-    minutesToResolve: Math.round(
-      (+new Date(best.resolved_at) - +new Date(best.occurred_at)) / 60000,
-    ),
+    minutesToResolve: Number.isFinite(mins) ? mins : 0,
     alternatives: rows
       .slice(1)
       .map((r) => ({ id: r.id, title: r.title, score: r.score })),

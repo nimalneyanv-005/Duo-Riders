@@ -43,8 +43,7 @@ function parseJson(text: string) {
 
 export async function draftPostmortem(trace: string): Promise<PM> {
   const a = await analyzeTrace(trace);
-  const m = "match" in a ? a : null;
-
+  const m = a.novel ? null : a;
   const base: PM = m
     ? {
         title: `Recurrence: ${m.match.title}`,
