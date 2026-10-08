@@ -33,6 +33,10 @@ const AREAS: [keyof PM, string][] = [
   ["prevention", "Prevention steps"],
 ];
 
+const field =
+  "mt-1 w-full rounded-lg border border-[#B8C2CE] bg-white px-3 py-2 text-[15px] text-[#0F1A2A] outline-none focus-visible:border-[#0F1A2A] focus-visible:ring-2 focus-visible:ring-[#FF5A4E]";
+const label = "block text-sm font-medium text-[#33445A]";
+
 export default function PostmortemPanel({
   trace,
   matchId,
@@ -82,8 +86,8 @@ export default function PostmortemPanel({
       setSaved(true);
       setMsg(
         d.searchable
-          ? "Saved. This incident is now part of CodePulse's memory."
-          : "Saved (search index pending).",
+          ? "Saved to memory. Future traces can now match this incident."
+          : "Saved. Search index is pending.",
       );
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Failed");
@@ -91,18 +95,23 @@ export default function PostmortemPanel({
     setBusy(false);
   }
 
-  const input =
-    "w-full rounded bg-slate-800 border border-slate-700 p-2 text-sm";
-
   return (
-    <section className="rounded-lg border border-slate-700 bg-slate-900 p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Post-mortem</h2>
+    <section className="mt-14 border-t border-[#CBD3DC] pt-8">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="max-w-[60ch]">
+          <h2 className="text-2xl font-bold tracking-tight">Post-mortem</h2>
+          {!pm && (
+            <p className="mt-1 text-[#33445A]">
+              Draft a write-up from this analysis, edit it, then save it to
+              memory.
+            </p>
+          )}
+        </div>
         {!pm && (
           <button
             onClick={generate}
             disabled={busy}
-            className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold disabled:opacity-40"
+            className="rounded-xl bg-[#0F1A2A] px-5 py-2.5 font-semibold text-white transition-colors hover:bg-[#1B2E47] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF5A4E] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {busy ? "Drafting..." : "Generate post-mortem"}
           </button>
@@ -110,22 +119,22 @@ export default function PostmortemPanel({
       </div>
 
       {pm && (
-        <div className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            {TEXT.map(([k, label]) => (
-              <label key={k} className="text-sm">
-                {label}
+        <div className="mt-6 space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {TEXT.map(([k, text]) => (
+              <label key={k} className={label}>
+                {text}
                 <input
-                  className={input}
+                  className={field}
                   value={String(pm[k])}
                   onChange={(e) => set(k, e.target.value)}
                 />
               </label>
             ))}
-            <label className="text-sm">
+            <label className={label}>
               Severity
               <select
-                className={input}
+                className={field}
                 value={pm.severity}
                 onChange={(e) => set("severity", e.target.value)}
               >
@@ -134,12 +143,12 @@ export default function PostmortemPanel({
                 <option>SEV3</option>
               </select>
             </label>
-            <label className="text-sm">
+            <label className={label}>
               Minutes to resolve
               <input
                 type="number"
                 min={0}
-                className={input}
+                className={field}
                 value={pm.minutesToResolve}
                 onChange={(e) =>
                   set(
@@ -150,28 +159,45 @@ export default function PostmortemPanel({
               />
             </label>
           </div>
-          {AREAS.map(([k, label]) => (
-            <label key={k} className="block text-sm">
-              {label}
+
+          {AREAS.map(([k, text]) => (
+            <label key={k} className={label}>
+              {text}
               <textarea
                 rows={3}
-                className={input}
+                className={field}
                 value={String(pm[k])}
                 onChange={(e) => set(k, e.target.value)}
               />
             </label>
           ))}
-          <button
-            onClick={save}
-            disabled={busy || saved}
-            className="rounded-lg bg-indigo-600 px-5 py-2 font-semibold disabled:opacity-40"
-          >
-            {busy ? "Saving..." : saved ? "Saved" : "Save to memory"}
-          </button>
+
+          <div className="flex flex-wrap items-center gap-4 pt-2">
+            <button
+              onClick={save}
+              disabled={
+                busy || saved || !pm.resolvedBy.trim() || !pm.title.trim()
+              }
+              className="rounded-xl bg-[#FF5A4E] px-5 py-2.5 font-semibold text-[#0A1320] transition-colors hover:bg-[#FF7468] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF5A4E] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {busy ? "Saving..." : saved ? "Saved" : "Save to memory"}
+            </button>
+            {!pm.resolvedBy.trim() && !saved && (
+              <p className="text-sm text-[#5B6B7F]">
+                Add your name under Resolved by to save.
+              </p>
+            )}
+          </div>
         </div>
       )}
+
       {msg && (
-        <p className={saved ? "text-emerald-400" : "text-red-400"}>{msg}</p>
+        <p
+          role="status"
+          className={`mt-4 font-medium ${saved ? "text-[#0F766E]" : "text-[#B42318]"}`}
+        >
+          {msg}
+        </p>
       )}
     </section>
   );
